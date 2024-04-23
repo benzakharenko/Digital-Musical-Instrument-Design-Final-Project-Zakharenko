@@ -8,7 +8,7 @@
 // Configuration
 const int pot_pin = A0;
 const uint8_t midi_channel = 0;
-const uint8_t controller_number = 0;
+const uint8_t controller_number = 17;
 const float c = 0.2;  // low pass filter coefficient (0 < c <= 1)
 
 float xDisplacement = 0;
