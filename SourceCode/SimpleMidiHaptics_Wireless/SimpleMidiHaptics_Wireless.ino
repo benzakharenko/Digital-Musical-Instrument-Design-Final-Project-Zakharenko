@@ -11,6 +11,7 @@ const uint8_t midi_channel = 0;
 const uint8_t controller_number = 17;
 const float c = 0.2;  // low pass filter coefficient (0 < c <= 1)
 
+//initializing global variables for gyroscope integration
 float xDisplacement = 0;
 float yDisplacement = 0;
 float zDisplacement = 0;
@@ -22,6 +23,7 @@ typedef enum {
   SPI_CSONLY_PROTOCOL
 } SerialProtocol;
 
+// call the class for the LMS6DSOX
 Adafruit_LSM6DSOX sox;
 SerialProtocol mode = I2C_PROTOCOL;
 
@@ -41,6 +43,8 @@ Adafruit_DRV2605 drv;
 
 void setup() {
   Serial.begin(115200);
+
+  //defining the pin of the flex sensor
   pinMode(pot_pin, INPUT);
 
   // initialize the vibration motor
@@ -55,7 +59,9 @@ void setup() {
     Serial.println("Disconnected");
   });
 
+// begin the LMS6DSOX communication
 sox.begin_I2C();
+
 }
 
 void loop() {
@@ -63,7 +69,8 @@ void loop() {
   BLEMidiServer.setNoteOnCallback(onNoteOn);
   BLEMidiServer.setNoteOffCallback(onNoteOff);
   BLEMidiServer.setControlChangeCallback(onControlChange);
-  // for flex sensor ---
+
+  //Flex Sensor-----------------------------------------------------------------------------------------------------------------------------------------------------------
   static float y = 0;
   static uint8_t old_y = 0;
 
@@ -75,14 +82,16 @@ void loop() {
     BLEMidiServer.controlChange(midi_channel, controller_number, y);
     old_y = (uint8_t)y;
   }
+  //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
   // gyroscopic sensors
   sensors_event_t accel, gyro, temp;
   sox.getEvent(&accel, &gyro, &temp);
   printAngularVelocity(gyro);
+
 }
 
-// defining the reading value functions
+// Receiving Incoming MIDI----------------------------------------------------------------------------------------------------------------------------------------------------
 void onNoteOn(uint8_t channel, uint8_t note, uint8_t velocity, uint16_t timestamp) {
   Serial.printf("Received note on : channel %d, note %d, velocity %d (timestamp %dms)\n", channel, note, velocity, timestamp);
   drv.setWaveform(0, 47);
@@ -96,6 +105,10 @@ void onNoteOff(uint8_t channel, uint8_t note, uint8_t velocity, uint16_t timesta
 void onControlChange(uint8_t channel, uint8_t controller, uint8_t value, uint16_t timestamp) {
   Serial.printf("Received control change : channel %d, controller %d, value %d (timestamp %dms)\n", channel, controller, value, timestamp);
 }
+
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//Gyroscope to Displacement to MIDI--------------------------------------------------------------------------------------------------------------------------------------------
 
 void printAngularVelocity(sensors_event_t gyro) {
   // Angular velocity is measured in radians/s
@@ -131,6 +144,6 @@ void printAngularVelocity(sensors_event_t gyro) {
     int yDeltaToMIDI = map(yDisplacement, -25, 25, 0, 127);
     //BLEMidiServer.controlChange(0, 21, yDeltaToMIDI);
   }
-\
+
 
 }
