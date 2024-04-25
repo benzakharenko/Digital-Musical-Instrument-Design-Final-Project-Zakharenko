@@ -74,7 +74,9 @@ void loop() {
   static float y = 0;
   static uint8_t old_y = 0;
 
-  float x = map(analogRead(pot_pin), 850, 520, 0, 127);
+  Serial.println(analogRead(pot_pin));
+
+  float x = map(analogRead(pot_pin), 3100, 2600, 0, 127);
   y += c * (x - y);  // simple low pass IIR filter (see tutorial here : https://tomroelandts.com/articles/low-pass-single-pole-iir-filter )
                      // (when we read the potentiometer, the value flickers a little bit all the time, so we need to do filter it to avoid sending midi messages all the time)
                      // another solution may be better than this type of filter, it is left as an exercise to the reader :)
@@ -133,9 +135,9 @@ void printAngularVelocity(sensors_event_t gyro) {
   Serial.print("x/ ");
   Serial.println(xDisplacement);
 
-  if (x > 0.1 || x < -0.1)
+  if (x > 0.05 || x < -0.05)
   { // -30 to 30
-    int xDeltaToMIDI = map(xDisplacement, -15, 15, 0, 127);
+    int xDeltaToMIDI = map(xDisplacement, -4, 6, 0, 127);
     BLEMidiServer.controlChange(0, 20, xDeltaToMIDI);
 
   }
