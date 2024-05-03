@@ -294,7 +294,7 @@ void printAngularVelocityX(sensors_event_t gyro)
 void printAngularVelocityY(sensors_event_t gyro) 
 {
   // Angular velocity is measured in radians/s
-  float x = gyro.gyro.y;
+  float y = gyro.gyro.y;
 
   //integration calculation for y
   updateMovingAverage(&gyroY, y);
@@ -307,8 +307,8 @@ void printAngularVelocityY(sensors_event_t gyro)
   //MIDI DELIVERY
   if ((y > 0.05 || y < -0.05))
   { // -30 to 30
-    int xDeltaToMIDI = map(xDisplacement, 0, 11, 0, 127);
-    BLEMidiServer.controlChange(0, 21, xDeltaToMIDI);
+    int yDeltaToMIDI = map(yDisplacement, 0, 11, 0, 127);
+    BLEMidiServer.controlChange(0, 21, yDeltaToMIDI);
     Serial.print("y Displacement/ ");
     Serial.println(yDisplacement);
   }
@@ -326,59 +326,41 @@ void printAngularVelocityY(sensors_event_t gyro)
 
 }
 
-void printAngularVelocityY(sensors_event_t gyro) {
-  // Angular velocity is measured in radians/s
-  float y = gyro.gyro.y;
-
-  //integration calculation for y
-  float yInMs = y * 0.001; //convert to rad/ms
-  float yArea = yInMs * 200; //integration calculation as rectangle estimation
-  yDisplacement = yDisplacement + yArea;
-
-  // calling reset pin
-  if (digitalRead(reset_pin)==HIGH)
-  {
-    yDisplacement = 0;
-  }
-
-
- // Serial.print("y/ ");
- // Serial.println(yDisplacement);
-  if (millis() - yTimeEllapsed > 50 && y > 0.1 || y < -0.1)
-  { //scale -25 to 25
-    int yDeltaToMIDI = map(yDisplacement, -25, 25, 0, 127);
-    //BLEMidiServer.controlChange(0, 21, yDeltaToMIDI);
-    yTimeEllapsed = millis();
-  }
-
-
-}
-
-void printAngularVelocityZ(sensors_event_t gyro) {
+void printAngularVelocityZ(sensors_event_t gyro) 
+{
   // Angular velocity is measured in radians/s
   float z = gyro.gyro.z;
 
-  //integration calculation for z
+  //integration calculation for y
+  updateMovingAverage(&gyroZ, z);
+
   float zInMs = z * 0.001; //convert to rad/ms
-  float zArea = zInMs * 200; //integration calculation as rectangle estimation    
+  float zArea = zInMs * 10; //integration calculation as rectangle estimation
+
   zDisplacement = zDisplacement + zArea;
+
+  //MIDI DELIVERY
+  if ((z > 0.05 || z < -0.05))
+  { // -30 to 30
+    int zDeltaToMIDI = map(zDisplacement, 0, 11, 0, 127);
+    BLEMidiServer.controlChange(0, 20, zDeltaToMIDI);
+    Serial.print("Z Displacement/ ");
+    Serial.println(zDisplacement);
+  }
+
 
   // calling reset pin
   if (digitalRead(reset_pin)==HIGH)
   {
+    for (int i = 0; i < NUM_READINGS; i++) 
+    {
+      gyroZ.readings[i] = 0;
+    }
     zDisplacement = 0;
   }
 
-
-
-  if (millis() - zTimeEllapsed > 50 && z > 0.1 || z < -0.1)
-  { //scale -25 to 25
-    int yDeltaToMIDI = map(yDisplacement, -25, 25, 0, 127);
-    BLEMidiServer.controlChange(0, 22, yDeltaToMIDI);
-    zTimeEllapsed = millis();
-  }
-
 }
+
 
 void updateMovingAverage(MotionParameter* param, float value) {
   // Subtract value previously stored in a given register
