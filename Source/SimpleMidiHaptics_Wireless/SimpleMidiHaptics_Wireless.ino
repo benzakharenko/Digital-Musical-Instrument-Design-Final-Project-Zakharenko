@@ -11,8 +11,10 @@ const uint8_t midi_channel = 0;
 const uint8_t controller_number = 17;
 const float c = 0.2;  // low pass filter coefficient (0 < c <= 1)
 
+
+int Timer = 0;
 //reset pin
-const int reset_pin = 0;
+const int reset_pin = 2;
 
 //mapping mode button
 const int mapping_mode_button = 1;
@@ -25,6 +27,24 @@ unsigned long timeElapsed = 0;
 float xDisplacement = 0;
 float yDisplacement = 0;
 float zDisplacement = 0;
+
+
+unsigned long xTimeEllapsed = 0;
+unsigned long yTimeEllapsed = 0;
+unsigned long zTimeEllapsed = 0;
+
+
+//rolling average code definitions
+#define NUM_READINGS 10
+struct MotionParameter {
+  float readings[NUM_READINGS];
+  float total = 0;
+  int readIndex = 0;
+};
+
+MotionParameter accX;
+MotionParameter accY;
+MotionParameter accZ;
 
 //defining things from the gyroscope:
 typedef enum {
@@ -39,12 +59,9 @@ SerialProtocol mode = I2C_PROTOCOL;
 
 
 //initializing functions to be defined later
-void onNoteOn();
-void onNoteOff();
-void onControlChange();
-void printAngularVelocityX(sensors_event_t gyro);
-void printAngularVelocityY(sensors_event_t gyro);
-void printAngularVelocityZ(sensors_event_t gyro);
+void onNoteOn(uint8_t channel, uint8_t note, uint8_t velocity, uint16_t timestamp);
+void onNoteOff(uint8_t channel, uint8_t note, uint8_t velocity, uint16_t timestamp);
+void onControlChange(uint8_t channel, uint8_t controller, uint8_t value, uint16_t timestamp);
 void connected() {
   Serial.println("Connected");
 }
@@ -53,6 +70,8 @@ void connected() {
 Adafruit_DRV2605 drv;
 
 
+// One million microseconds in one second
+float loopRateInMicroseconds = 10000;   // 10000us = 10ms
 
 
 
@@ -81,7 +100,17 @@ void setup() {
   });
 
 // begin the LMS6DSOX communication
-sox.begin_I2C();
+  sox.begin_I2C();
+
+  // Initialize all reading to 0
+  for (int i = 0; i < NUM_READINGS; i++) {
+    accX.readings[i] = 0;
+    accY.readings[i] = 0;
+    accZ.readings[i] = 0;
+    gyroX.readings[i] = 0;
+    gyroY.readings[i] = 0;
+    gyroZ.readings[i] = 0;
+  }
 
 }
 
@@ -124,7 +153,8 @@ void loop() {
     y += c * (x - y);  // simple low pass IIR filter (see tutorial here : https://tomroelandts.com/articles/low-pass-single-pole-iir-filter )
                       // (when we read the potentiometer, the value flickers a little bit all the time, so we need to do filter it to avoid sending midi messages all the time)
                       // another solution may be better than this type of filter, it is left as an exercise to the reader :)
-    if (BLEMidiServer.isConnected() && (uint8_t)y != old_y) {
+    if (BLEMidiServer.isConnected() && (uint8_t)y != old_y) 
+    {
       BLEMidiServer.controlChange(midi_channel, controller_number, y);
       old_y = (uint8_t)y;
     }
@@ -147,6 +177,8 @@ void loop() {
   {
     printAngularVelocityZ(gyro);
   }
+
+  delayMicroseconds(loopRateInMicroseconds);
 //----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 }
@@ -175,44 +207,76 @@ void onControlChange(uint8_t channel, uint8_t controller, uint8_t value, uint16_
 
 //Gyroscope to Displacement to MIDI--------------------------------------------------------------------------------------------------------------------------------------------
 
-void printAngularVelocityX(sensors_event_t gyro) {
+void printAngularVelocityX(sensors_event_t gyro) 
+{
   // Angular velocity is measured in radians/s
   float x = gyro.gyro.x;
-  // defining variables necessary for the rolling average
-  float xArea[10];
-  int TimeDelay = millis() % 100;
-  Serial.print("TimeDelay: ");
-  Serial.println(TimeDelay);
-  //integration calculation for x and getting a rolling average
-  if (TimeDelay % 10 == 0)
+
+  //integration calculation for y
+  xAverage[xIndex] = x;
+
+  /*Serial.print("index: ");
+  Serial.println(xIndex);
+  Serial.print("x input");
+  Serial.println(xAverage[xIndex]); */
+  xIndex = (xIndex + 1) % 10;
+
+  sum -= xAverage[(xIndex - 1) % 10];
+  sum += x;
+
+  //Serial.print("sum: ");
+  //Serial.println(sum);
+
+
+
+  float xInMs = sum * 0.001; //convert to rad/ms
+  float xArea = xInMs * 10; //integration calculation as rectangle estimation
+
+  xDisplacement = xDisplacement + xArea;
+    // defining variables necessary for the rolling average
+  // unsigned long currentTime = millis();
+  // int TimeDelay = currentTime % 100;
+    //integration calculation for x and getting a rolling average
+  
+
+
+
+
+
+  /*
+  while (xIndex < 10)
   {
-  int CurrentIndex = TimeDelay * 0.1;
-  float xInMs = x * 0.001; //convert to rad/ms
-  xArea[CurrentIndex] = xInMs * 10; //integration calculation as rectangle estimation
-  Serial.print("Current Index: ");
-  Serial.println(CurrentIndex);
-  Serial.print("Index Value: ");
-  Serial.println(xArea[CurrentIndex]);
+    float xInMs = x * 0.001; //convert to rad/ms
+    xAverage[xIndex] = xInMs;
+    xIndex++;
   }
-  if (TimeDelay >= 99)
+
+  if (xIndex == 10)
   {
-    int xAreaTotal = 0;
+
+    
+    int xVelTotal = 0;
     for (uint8_t i = 0; i < 10; i++)
     {
-      xAreaTotal += xArea[i];
+      xVelTotal = xVelTotal + xAverage[i];
     }
-    int xArea_Average = xAreaTotal / 10;
+    int xVelAverage = xVelTotal / 10;
+    int xArea_Average = xVelAverage *10;
     xDisplacement = xDisplacement + xArea_Average;
 
-    //MIDI DELIVERY
-    if (x > 0.05 || x < -0.05)
-    { // -30 to 30
-      int xDeltaToMIDI = map(xDisplacement, 0, 11, 0, 127);
-      BLEMidiServer.controlChange(0, 20, xDeltaToMIDI);
-    }
-    Serial.println("I Have Calculated the Average!!!");
 
   }
+  */
+  //MIDI DELIVERY
+  if ((millis() - xTimeEllapsed > 50) && (x > 0.05 || x < -0.05))
+  { // -30 to 30
+    int xDeltaToMIDI = map(xDisplacement, 0, 11, 0, 127);
+    BLEMidiServer.controlChange(0, 20, xDeltaToMIDI);
+    Serial.print("x/ ");
+    Serial.println(xDisplacement);
+    xTimeEllapsed = millis();
+  }
+
 
   // calling reset pin
   if (digitalRead(reset_pin)==HIGH)
@@ -220,9 +284,7 @@ void printAngularVelocityX(sensors_event_t gyro) {
     xDisplacement = 0;
   }
 
-  //Serial.print("x/ ");
-  //Serial.println(xDisplacement);
-
+  delay (500);
 }
 
 void printAngularVelocityY(sensors_event_t gyro) {
@@ -240,13 +302,14 @@ void printAngularVelocityY(sensors_event_t gyro) {
     yDisplacement = 0;
   }
 
-  delay(50);
 
-
-  if (y > 0.1 || y < -0.1)
+ // Serial.print("y/ ");
+ // Serial.println(yDisplacement);
+  if (millis() - yTimeEllapsed > 50 && y > 0.1 || y < -0.1)
   { //scale -25 to 25
     int yDeltaToMIDI = map(yDisplacement, -25, 25, 0, 127);
     //BLEMidiServer.controlChange(0, 21, yDeltaToMIDI);
+    yTimeEllapsed = millis();
   }
 
 
@@ -267,12 +330,13 @@ void printAngularVelocityZ(sensors_event_t gyro) {
     zDisplacement = 0;
   }
 
-  delay(50);
 
-  if (z > 0.1 || z < -0.1)
+
+  if (millis() - zTimeEllapsed > 50 && z > 0.1 || z < -0.1)
   { //scale -25 to 25
     int yDeltaToMIDI = map(yDisplacement, -25, 25, 0, 127);
     BLEMidiServer.controlChange(0, 22, yDeltaToMIDI);
+    zTimeEllapsed = millis();
   }
 
 }
