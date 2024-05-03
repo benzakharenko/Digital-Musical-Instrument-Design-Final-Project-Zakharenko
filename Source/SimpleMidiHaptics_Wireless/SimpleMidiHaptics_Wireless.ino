@@ -42,9 +42,9 @@ struct MotionParameter {
   int readIndex = 0;
 };
 
-MotionParameter accX;
-MotionParameter accY;
-MotionParameter accZ;
+MotionParameter gyroX;
+MotionParameter gyroY;
+MotionParameter gyroZ;
 
 //defining things from the gyroscope:
 typedef enum {
@@ -71,7 +71,7 @@ Adafruit_DRV2605 drv;
 
 
 // One million microseconds in one second
-float loopRateInMicroseconds = 10000;   // 10000us = 10ms
+float loopRateInMicroseconds = 20000;   // 10000us = 10ms
 
 
 
@@ -104,9 +104,6 @@ void setup() {
 
   // Initialize all reading to 0
   for (int i = 0; i < NUM_READINGS; i++) {
-    accX.readings[i] = 0;
-    accY.readings[i] = 0;
-    accZ.readings[i] = 0;
     gyroX.readings[i] = 0;
     gyroY.readings[i] = 0;
     gyroZ.readings[i] = 0;
@@ -213,78 +210,33 @@ void printAngularVelocityX(sensors_event_t gyro)
   float x = gyro.gyro.x;
 
   //integration calculation for y
-  xAverage[xIndex] = x;
+  updateMovingAverage(&gyroX, x);
 
-  /*Serial.print("index: ");
-  Serial.println(xIndex);
-  Serial.print("x input");
-  Serial.println(xAverage[xIndex]); */
-  xIndex = (xIndex + 1) % 10;
-
-  sum -= xAverage[(xIndex - 1) % 10];
-  sum += x;
-
-  //Serial.print("sum: ");
-  //Serial.println(sum);
-
-
-
-  float xInMs = sum * 0.001; //convert to rad/ms
+  float xInMs = x * 0.001; //convert to rad/ms
   float xArea = xInMs * 10; //integration calculation as rectangle estimation
 
   xDisplacement = xDisplacement + xArea;
-    // defining variables necessary for the rolling average
-  // unsigned long currentTime = millis();
-  // int TimeDelay = currentTime % 100;
-    //integration calculation for x and getting a rolling average
-  
 
-
-
-
-
-  /*
-  while (xIndex < 10)
-  {
-    float xInMs = x * 0.001; //convert to rad/ms
-    xAverage[xIndex] = xInMs;
-    xIndex++;
-  }
-
-  if (xIndex == 10)
-  {
-
-    
-    int xVelTotal = 0;
-    for (uint8_t i = 0; i < 10; i++)
-    {
-      xVelTotal = xVelTotal + xAverage[i];
-    }
-    int xVelAverage = xVelTotal / 10;
-    int xArea_Average = xVelAverage *10;
-    xDisplacement = xDisplacement + xArea_Average;
-
-
-  }
-  */
   //MIDI DELIVERY
-  if ((millis() - xTimeEllapsed > 50) && (x > 0.05 || x < -0.05))
+  if ((x > 0.05 || x < -0.05))
   { // -30 to 30
     int xDeltaToMIDI = map(xDisplacement, 0, 11, 0, 127);
     BLEMidiServer.controlChange(0, 20, xDeltaToMIDI);
-    Serial.print("x/ ");
+    Serial.print("x Displacement/ ");
     Serial.println(xDisplacement);
-    xTimeEllapsed = millis();
   }
 
 
   // calling reset pin
   if (digitalRead(reset_pin)==HIGH)
   {
+    for (int i = 0; i < NUM_READINGS; i++) 
+    {
+      gyroX.readings[i] = 0;
+    }
     xDisplacement = 0;
   }
 
-  delay (500);
 }
 
 void printAngularVelocityY(sensors_event_t gyro) {
@@ -339,5 +291,20 @@ void printAngularVelocityZ(sensors_event_t gyro) {
     zTimeEllapsed = millis();
   }
 
+}
+
+void updateMovingAverage(MotionParameter* param, float value) {
+  // Subtract value previously stored in a given register
+  param->total -= param->readings[param->readIndex];
+
+  // Update stored value at register and total
+  param->readings[param->readIndex] = value;
+  param->total += value;
+
+  param->readIndex++;
+  
+  if (param->readIndex >= NUM_READINGS) {
+    param->readIndex = 0;
+  }
 }
 
