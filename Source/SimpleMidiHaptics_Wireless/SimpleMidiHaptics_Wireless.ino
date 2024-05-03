@@ -3,6 +3,18 @@
 #include <Adafruit_LSM6DSOX.h>
 #include <Arduino.h>
 #include <BLEMidi.h>
+#include <Adafruit_GFX.h>    // Core graphics library
+#include <Adafruit_ST7789.h> // Hardware-specific library for ST7789
+#include <SPI.h>
+
+// DISPLAY: Use dedicated hardware SPI pins
+Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
+float p = 3.1415926;
+
+//DISPLAY: refresh rate timer
+unsigned long startMillis;  //some global variables available anywhere in the program
+unsigned long currentMillis;
+const unsigned long period = 200;  //the value is a number of milliseconds
 
 //Defining Input and Output Pins:
 // Configuration
@@ -109,6 +121,20 @@ void setup() {
     gyroZ.readings[i] = 0;
   }
 
+  // turn on backlite
+  pinMode(TFT_BACKLITE, OUTPUT);
+  digitalWrite(TFT_BACKLITE, HIGH);
+
+  // turn on the TFT / I2C power supply
+  pinMode(TFT_I2C_POWER, OUTPUT);
+  digitalWrite(TFT_I2C_POWER, HIGH);
+  delay(10);
+
+  // initialize TFT
+  tft.init(135, 240); // Init ST7789 240x135
+  tft.setRotation(3);
+  tft.fillScreen(ST77XX_BLACK);
+
 }
 
 
@@ -176,7 +202,33 @@ void loop() {
   }
 
   delayMicroseconds(loopRateInMicroseconds);
-//----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//Display------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  currentMillis = millis();  //get the current "time" (actually the number of milliseconds since the program started)
+  if (currentMillis - startMillis >= period)  //test whether the period has elapsed
+  {
+    tft.setTextWrap(true);
+    tft.fillScreen(ST77XX_BLACK);
+    tft.setCursor(5, 50);
+    tft.setTextColor(ST77XX_RED);
+    tft.setTextSize(2);
+    tft.print("Mapping Mode ");
+    if (mapping_mode == 0)
+    {
+      tft.print("NO MAPPING MODE ENABLED");
+    }
+    else
+    {
+      tft.print(mapping_mode);
+    }
+    tft.setCursor(5, 110);
+    tft.setTextColor(ST77XX_RED);
+    tft.setTextSize(2); 
+    tft.print("Reset");
+    startMillis = currentMillis;  //IMPORTANT to save the start time of the current LED state.
+  }
+//------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 }
 
@@ -235,6 +287,41 @@ void printAngularVelocityX(sensors_event_t gyro)
       gyroX.readings[i] = 0;
     }
     xDisplacement = 0;
+  }
+
+}
+
+void printAngularVelocityY(sensors_event_t gyro) 
+{
+  // Angular velocity is measured in radians/s
+  float x = gyro.gyro.y;
+
+  //integration calculation for y
+  updateMovingAverage(&gyroY, y);
+
+  float yInMs = y * 0.001; //convert to rad/ms
+  float yArea = yInMs * 10; //integration calculation as rectangle estimation
+
+  yDisplacement = yDisplacement + yArea;
+
+  //MIDI DELIVERY
+  if ((y > 0.05 || y < -0.05))
+  { // -30 to 30
+    int xDeltaToMIDI = map(xDisplacement, 0, 11, 0, 127);
+    BLEMidiServer.controlChange(0, 21, xDeltaToMIDI);
+    Serial.print("y Displacement/ ");
+    Serial.println(yDisplacement);
+  }
+
+
+  // calling reset pin
+  if (digitalRead(reset_pin)==HIGH)
+  {
+    for (int i = 0; i < NUM_READINGS; i++) 
+    {
+      gyroY.readings[i] = 0;
+    }
+    yDisplacement = 0;
   }
 
 }
