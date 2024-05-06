@@ -45,6 +45,9 @@ unsigned long xTimeEllapsed = 0;
 unsigned long yTimeEllapsed = 0;
 unsigned long zTimeEllapsed = 0;
 
+//custom map function
+
+
 
 //rolling average code definitions
 #define NUM_READINGS 10
@@ -83,7 +86,7 @@ Adafruit_DRV2605 drv;
 
 
 // One million microseconds in one second
-float loopRateInMicroseconds = 20000;   // 10000us = 10ms
+float loopRateInMicroseconds = 50000;   // 10000us = 10ms
 
 
 
@@ -196,12 +199,19 @@ void loop() {
   {
     printAngularVelocityY(gyro);
   }
+
+/* optional Z axis to add
+
   if (mapping_mode == 0 || mapping_mode == 4)
   {
     printAngularVelocityZ(gyro);
   }
 
-  delayMicroseconds(loopRateInMicroseconds);
+  //delayMicroseconds(loopRateInMicroseconds);
+
+
+*/  
+delay(30);
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 //Display------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -213,15 +223,38 @@ void loop() {
     tft.setCursor(5, 50);
     tft.setTextColor(ST77XX_RED);
     tft.setTextSize(2);
-    tft.print("Mapping Mode ");
+    tft.println("Mapping Mode: ");
+    switch (mapping_mode)
+    {
+      case 0:
+      tft.print("NONE");
+      break;
+
+      case 1:
+      tft.print("Elbow Bend");
+      break;
+
+      case 2:
+      tft.print("Wrist Turn");
+      break;
+
+      case 3:
+      tft.print("Arm Raise/Fall");
+      break;
+
+      case 4:
+      tft.print("Arm Along Radius");
+    }
+    /*
     if (mapping_mode == 0)
     {
       tft.print("NO MAPPING MODE ENABLED");
     }
-    else
+    else if (mapping)
     {
       tft.print(mapping_mode);
     }
+    */
     tft.setCursor(5, 110);
     tft.setTextColor(ST77XX_RED);
     tft.setTextSize(2); 
@@ -264,18 +297,29 @@ void printAngularVelocityX(sensors_event_t gyro)
   //integration calculation for y
   updateMovingAverage(&gyroX, x);
 
+
   float xInMs = x * 0.001; //convert to rad/ms
   float xArea = xInMs * 10; //integration calculation as rectangle estimation
 
   xDisplacement = xDisplacement + xArea;
+    //Serial.print("x Displacement/ ");
+    //Serial.println(xDisplacement);
 
   //MIDI DELIVERY
   if ((x > 0.05 || x < -0.05))
   { // -30 to 30
-    int xDeltaToMIDI = map(xDisplacement, 0, 11, 0, 127);
+    float xDeltaToMIDI = int((xDisplacement * 63) + 63);
+    if (xDeltaToMIDI > 127)
+    {
+      xDeltaToMIDI = 127;
+    }
+    if (xDeltaToMIDI < 0)
+    {
+      xDeltaToMIDI = 0;
+    }
+    //Serial.println(xDeltaToMIDI);
     BLEMidiServer.controlChange(0, 20, xDeltaToMIDI);
-    Serial.print("x Displacement/ ");
-    Serial.println(xDisplacement);
+
   }
 
 
@@ -299,18 +343,22 @@ void printAngularVelocityY(sensors_event_t gyro)
   //integration calculation for y
   updateMovingAverage(&gyroY, y);
 
+
   float yInMs = y * 0.001; //convert to rad/ms
   float yArea = yInMs * 10; //integration calculation as rectangle estimation
 
   yDisplacement = yDisplacement + yArea;
 
+
   //MIDI DELIVERY
   if ((y > 0.05 || y < -0.05))
   { // -30 to 30
-    int yDeltaToMIDI = map(yDisplacement, 0, 11, 0, 127);
+
+    float yDeltaToMIDI = int(mapCustom(yDisplacement, -0.5, 0.5, 0, 127));
+    Serial.println(yDeltaToMIDI);
+
     BLEMidiServer.controlChange(0, 21, yDeltaToMIDI);
-    Serial.print("y Displacement/ ");
-    Serial.println(yDisplacement);
+
   }
 
 
@@ -323,29 +371,30 @@ void printAngularVelocityY(sensors_event_t gyro)
     }
     yDisplacement = 0;
   }
-
 }
 
+/*
 void printAngularVelocityZ(sensors_event_t gyro) 
 {
   // Angular velocity is measured in radians/s
   float z = gyro.gyro.z;
 
   //integration calculation for y
-  updateMovingAverage(&gyroZ, z);
+  //updateMovingAverage(&gyroZ, z);
 
   float zInMs = z * 0.001; //convert to rad/ms
   float zArea = zInMs * 10; //integration calculation as rectangle estimation
 
   zDisplacement = zDisplacement + zArea;
+    //Serial.print("Z Displacement/ ");
+    //Serial.println(zDisplacement);
 
   //MIDI DELIVERY
   if ((z > 0.05 || z < -0.05))
   { // -30 to 30
-    int zDeltaToMIDI = map(zDisplacement, 0, 11, 0, 127);
-    BLEMidiServer.controlChange(0, 20, zDeltaToMIDI);
-    Serial.print("Z Displacement/ ");
-    Serial.println(zDisplacement);
+    float zDeltaToMIDI = map(zDisplacement, 0, 11, 0, 127);
+    BLEMidiServer.controlChange(0, 22, zDeltaToMIDI);
+
   }
 
 
@@ -360,7 +409,7 @@ void printAngularVelocityZ(sensors_event_t gyro)
   }
 
 }
-
+*/
 
 void updateMovingAverage(MotionParameter* param, float value) {
   // Subtract value previously stored in a given register
@@ -371,9 +420,22 @@ void updateMovingAverage(MotionParameter* param, float value) {
   param->total += value;
 
   param->readIndex++;
-  
   if (param->readIndex >= NUM_READINGS) {
     param->readIndex = 0;
   }
+}
+//custom map hat takes floats and clips at 0 and 127
+float mapCustom(float x, float in_min, float in_max, float out_min, float out_max) 
+{
+  float Mapped = (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+  if (Mapped > 127)
+  {
+    Mapped = 127;
+  }
+  if (Mapped < 0)
+  {
+    Mapped = 0;
+  }
+  return Mapped;
 }
 
