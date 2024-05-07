@@ -10,7 +10,7 @@ At them moment, using the Wave Control is incredibly easy! To get started, all y
 
 ## Turning on the Wave Control
 
-To turn on the Wave Control, simply plug it in via your USB C cable. That's it, it's now on!
+To turn on the Wave Control, simply press the red button below the main screen unit. That's it, it's now on!
 
 ## Connecting Wave Control to Your Computer
 
@@ -18,7 +18,7 @@ To pair the Wave Control with your computer, open the AUDIO MIDI SETUP applicati
 
 This should open up the MIDI Studio window. In the top right corner of this window, there should be a Bluetooth icon. Click this icon, and a window will appear that allows you to connect Bluetooth MIDI devices!
 
-If your Wave Control device is on, it should appear as "MIDI Glove" in this window. Click connect—after a few seconds, the button should change to say "_connected_" and you're ready to get to work!
+If your Wave Control device is on, it should appear as "Wave Control" in this window. Click connect—after a few seconds, the button should change to say "_connected_" and you're ready to get to work!
 
 ## Configuring the Wave Control to Work with Your DAW
 
@@ -29,12 +29,12 @@ Here are the steps to configure Ableton Live to work with your Wave Control devi
 
 1. Open Ableton Live.
 2. Open the "Preferences" Panel and Click the Tab that says "Link/Tempo/MIDI."
-3. In the MIDI Ports section at the bottom, you should see "MIDI Glove In" and "MIDI Glove Out." Make sure the checkboxes for "Track" and "Remote" **checked** for both. 
+3. In the MIDI Ports section at the bottom, you should see "Wave Control In" and "Wave Control Out." Make sure the checkboxes for "Track" and "Remote" **checked** for both. 
 4. Close the preferences window. Your controller is now paired!
 
 #### Mapping CC Messages
 
-To map CC messages in Ableton, simply use the key command _CMD+M_ to enter MIDI mapping mode. Click the parameter you would like to map, and make the gesture you would like to control that! 
+To map CC messages in Ableton, press the mapping mode button to cycle through the different parameters you want to map. Once you have the desired parameter selected, simply use the key command _CMD+M_ to enter MIDI mapping mode. Click the parameter in Ableton you would like to map, and make the gesture you would like to control that! 
 
 You can also change the mapping range in the MIDI Mapping window that opens.
 
